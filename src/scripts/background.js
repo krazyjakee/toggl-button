@@ -176,6 +176,34 @@ var TogglButton = {
   },
 
   createTimeEntry: function (timeEntry, sendResponse) {
+
+    if(!timeEntry.projectName) {
+        alert('Error: Tasks must be within Sections in Asana');
+        return false;
+    }
+
+    clientProjectId = TogglButton.$clientProjectMap[timeEntry.clientName + ' > ' + timeEntry.projectName];
+
+    if(isNaN(clientProjectId)) {
+    
+        if(!TogglButton.$dataRefresh) {
+            TogglButton.$dataRefresh = true;
+            TogglButton.fetchClients(TogglButton.$apiUrl);
+            alert('Sorry, not found! I have refreshed the data, please try again');
+            return;
+        }
+        TogglButton.$dataRefresh = false;
+        
+        if(TogglButton.$clientMap[timeEntry.clientName]) {
+            TogglButton.createProject(timeEntry.clientName, timeEntry.projectName);
+            alert('I created project \'' + timeEntry.projectName +'\', try again');
+            return;
+        }
+        
+        alert('Error: Could not find Client in Toggl: ' + timeEntry.clientName);
+        return;
+    }
+
     var project, start = new Date(),
       entry = {
         time_entry: {
@@ -211,6 +239,61 @@ var TogglButton = {
         if (TogglButton.$timer !== null) {
           clearTimeout(TogglButton.$timer);
         }
+      }
+    });
+  },
+
+  fetchClients: function (apiUrl) {
+    TogglButton.ajax('/clients', {
+      method: 'POST',
+      payload: entry,
+      onLoad: function (xhr) {
+        if (xhr.status === 200) {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp) {
+            
+            if(resp.data) {
+              resp = resp.data;
+            }
+            
+            if(TogglButton.$dataRefresh) {
+              TogglButton.$clientProjectMap = {};
+            }
+            
+            TogglButton.$clientMap = {};
+            
+            resp.forEach(function (client) {
+              if(!client.server_deleted_at) {
+                  TogglButton.$clientMap[client.name] = client.id;
+                  TogglButton.fetchClientProjects(apiUrl, client.id, client.name);
+              }
+            });
+          }
+        } else if (apiUrl === TogglButton.$apiUrl) {
+          TogglButton.fetchClients(TogglButton.$newApiUrl);
+        }
+      }
+    });
+  },  
+
+  createProject: function (clientName, projectName) {
+
+    var entry = {
+      project: {
+        name: projectName,
+        wid: TogglButton.$user.default_wid,
+        cid: TogglButton.$clientMap[clientName],
+        active: true,
+        is_private: false          
+      }
+    }; 
+    
+    TogglButton.ajax('/projects', {
+      method: 'POST',
+      payload: entry,
+      onLoad: function (xhr) {
+        TogglButton.$dataRefresh = true;
+        TogglButton.fetchClients(TogglButton.$apiUrl);
       }
     });
   },
