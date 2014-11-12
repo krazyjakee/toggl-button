@@ -17,6 +17,7 @@ var TogglButton = {
   $idleInterval: 360000,
   $idleFromTo: "09:00-17:00",
   $lastSyncDate: null,
+  $clientProjectMap: {},
   $editForm: '<div id="toggl-button-edit-form">' +
       '<form>' +
       '<a class="toggl-button {service} active" href="#">Stop timer</a>' +
@@ -294,6 +295,32 @@ var TogglButton = {
       onLoad: function (xhr) {
         TogglButton.$dataRefresh = true;
         TogglButton.fetchClients(TogglButton.$apiUrl);
+      }
+    });
+  },
+
+  fetchClientProjects: function (apiUrl, clientID, clientName) {
+
+    TogglButton.ajax("/clients/" + clientID + "/projects", {
+      method: 'POST',
+      payload: entry,
+      onLoad: function (xhr) {
+        if (xhr.status === 200) {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp) {
+            if(resp.data) {
+              resp = resp.data;
+            }
+            resp.forEach(function (clientProject) {
+              if(clientProject.active) {
+                  TogglButton.$clientProjectMap[clientName + ' > ' + clientProject.name] = clientProject.id;
+              }
+
+            });
+          }
+        } else if (apiUrl === TogglButton.$apiUrl) {
+          TogglButton.fetchClientProjects(TogglButton.$newApiUrl, clientID, clientName);
+        }
       }
     });
   },
@@ -624,6 +651,7 @@ var TogglButton = {
 };
 
 TogglButton.fetchUser(TogglButton.$apiUrl);
+TogglButton.fetchClients(TogglButton.$apiUrl);
 TogglButton.$showPostPopup = (localStorage.getItem("showPostPopup") === null) ? true : localStorage.getItem("showPostPopup");
 TogglButton.$socketEnabled = !!localStorage.getItem("socketEnabled");
 TogglButton.$idleCheckEnabled = !!localStorage.getItem("idleCheckEnabled");
