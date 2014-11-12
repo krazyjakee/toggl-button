@@ -247,7 +247,6 @@ var TogglButton = {
   fetchClients: function (apiUrl) {
     TogglButton.ajax('/clients', {
       method: 'POST',
-      payload: entry,
       onLoad: function (xhr) {
         if (xhr.status === 200) {
           var resp = JSON.parse(xhr.responseText);
@@ -303,7 +302,6 @@ var TogglButton = {
 
     TogglButton.ajax("/clients/" + clientID + "/projects", {
       method: 'POST',
-      payload: entry,
       onLoad: function (xhr) {
         if (xhr.status === 200) {
           var resp = JSON.parse(xhr.responseText);
