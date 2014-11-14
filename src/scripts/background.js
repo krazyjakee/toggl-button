@@ -18,6 +18,7 @@ var TogglButton = {
   $idleFromTo: "09:00-17:00",
   $lastSyncDate: null,
   $clientProjectMap: {},
+  $clientMap: {},
   $editForm: '<div id="toggl-button-edit-form">' +
       '<form>' +
       '<a class="toggl-button {service} active" href="#">Stop timer</a>' +
@@ -176,6 +177,25 @@ var TogglButton = {
     }
   },
 
+  createClient: function (clientName, callback){
+    var entry = {
+      client: {
+        name: clientName.replace(/\|\-/g,''),
+        wid: TogglButton.$user.default_wid
+      }
+    }
+
+    TogglButton.ajax('/clients', {
+      method: 'POST',
+      payload: entry,
+      onLoad: function (xhr) {
+        if(callback){
+          callback(JSON.parse(xhr.responseText));
+        }
+      }
+    });
+  },
+
   createTimeEntry: function (timeEntry, sendResponse) {
 
     if(!timeEntry.projectName) {
@@ -183,26 +203,23 @@ var TogglButton = {
         return false;
     }
 
-    clientProjectId = TogglButton.$clientProjectMap[timeEntry.clientName + ' > ' + timeEntry.projectName];
-
+    var clientProjectId = TogglButton.$clientProjectMap[timeEntry.clientName + ' > ' + timeEntry.projectName];
     if(isNaN(clientProjectId)) {
-    
-        if(!TogglButton.$dataRefresh) {
-            TogglButton.$dataRefresh = true;
-            TogglButton.fetchClients(TogglButton.$apiUrl);
-            alert('Sorry, not found! I have refreshed the data, please try again');
-            return;
-        }
-        TogglButton.$dataRefresh = false;
         
         if(TogglButton.$clientMap[timeEntry.clientName]) {
             TogglButton.createProject(timeEntry.clientName, timeEntry.projectName);
             alert('I created project \'' + timeEntry.projectName +'\', try again');
             return;
+        }else if(timeEntry.clientName){
+          TogglButton.createClient(timeEntry.clientName, function(xhr){
+            alert('Created Client: ' + timeEntry.clientName +'\', try again');
+            return;
+          });
+          return;
+        }else{
+          alert('Error: Could not find Client in Toggl: ' + timeEntry.clientName);
+          return;
         }
-        
-        alert('Error: Could not find Client in Toggl: ' + timeEntry.clientName);
-        return;
     }
 
     var project, start = new Date(),
@@ -244,9 +261,9 @@ var TogglButton = {
     });
   },
 
-  fetchClients: function (apiUrl) {
+  fetchClients: function () {
     TogglButton.ajax('/clients', {
-      method: 'POST',
+      method: 'GET',
       onLoad: function (xhr) {
         if (xhr.status === 200) {
           var resp = JSON.parse(xhr.responseText);
@@ -265,12 +282,12 @@ var TogglButton = {
             resp.forEach(function (client) {
               if(!client.server_deleted_at) {
                   TogglButton.$clientMap[client.name] = client.id;
-                  TogglButton.fetchClientProjects(apiUrl, client.id, client.name);
+                  TogglButton.fetchClientProjects(client.id, client.name);
               }
             });
           }
-        } else if (apiUrl === TogglButton.$apiUrl) {
-          TogglButton.fetchClients(TogglButton.$newApiUrl);
+        } else{
+          alert('Clients Request Error');
         }
       }
     });
@@ -293,15 +310,14 @@ var TogglButton = {
       payload: entry,
       onLoad: function (xhr) {
         TogglButton.$dataRefresh = true;
-        TogglButton.fetchClients(TogglButton.$apiUrl);
+        TogglButton.fetchClients();
       }
     });
   },
 
-  fetchClientProjects: function (apiUrl, clientID, clientName) {
-
+  fetchClientProjects: function (clientID, clientName) {
     TogglButton.ajax("/clients/" + clientID + "/projects", {
-      method: 'POST',
+      method: 'GET',
       onLoad: function (xhr) {
         if (xhr.status === 200) {
           var resp = JSON.parse(xhr.responseText);
@@ -316,8 +332,8 @@ var TogglButton = {
 
             });
           }
-        } else if (apiUrl === TogglButton.$apiUrl) {
-          TogglButton.fetchClientProjects(TogglButton.$newApiUrl, clientID, clientName);
+        } else{
+          alert('Client Projects Request Error.');
         }
       }
     });
@@ -329,7 +345,6 @@ var TogglButton = {
       baseUrl = opts.baseUrl || TogglButton.$newApiUrl,
       token = opts.token || (TogglButton.$user && TogglButton.$user.api_token),
       credentials = opts.credentials || null;
-
     xhr.open(method, baseUrl + url, true);
     if (opts.onLoad) {
       xhr.addEventListener('load', function () { opts.onLoad(xhr); });
@@ -649,7 +664,7 @@ var TogglButton = {
 };
 
 TogglButton.fetchUser(TogglButton.$apiUrl);
-TogglButton.fetchClients(TogglButton.$apiUrl);
+TogglButton.fetchClients();
 TogglButton.$showPostPopup = (localStorage.getItem("showPostPopup") === null) ? true : localStorage.getItem("showPostPopup");
 TogglButton.$socketEnabled = !!localStorage.getItem("socketEnabled");
 TogglButton.$idleCheckEnabled = !!localStorage.getItem("idleCheckEnabled");
